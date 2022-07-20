@@ -1,9 +1,15 @@
 from __future__ import annotations
+from utils import *
+
 from typing import Callable, NoReturn
+
 import numpy as np
 
 from IMLearn.base import BaseModule, BaseLR
 from .learning_rate import FixedLR
+
+pio.templates.default = "simple_white"
+pio.renderers.default = "browser"
 
 OUTPUT_VECTOR_TYPE = ["last", "best", "average"]
 
@@ -39,12 +45,14 @@ class GradientDescent:
         Callable function receives as input any argument relevant for the current GD iteration. Arguments
         are specified in the `GradientDescent.fit` function
     """
+
     def __init__(self,
                  learning_rate: BaseLR = FixedLR(1e-3),
                  tol: float = 1e-5,
                  max_iter: int = 1000,
                  out_type: str = "last",
-                 callback: Callable[[GradientDescent, ...], None] = default_callback):
+                 callback: Callable[
+                     [GradientDescent, ...], None] = default_callback):
         """
         Instantiate a new instance of the GradientDescent class
 
@@ -119,4 +127,35 @@ class GradientDescent:
                 Euclidean norm of w^(t)-w^(t-1)
 
         """
-        raise NotImplementedError()
+        iter = 0
+        w = f.weights
+        min_output = f.compute_output(X=X, y=y)
+        min_w = f.weights
+        weights_sum = 0
+        for t in range(self.max_iter_):
+            grad = f.compute_jacobian(X=X, y=y)
+            eta = self.learning_rate_.lr_step(t=t)
+            cur_w = w - eta * grad
+            delta = np.linalg.norm(w - cur_w)
+            f.weights = cur_w
+            weights_sum += cur_w
+            cur_output = f.compute_output(X=X, y=y)
+            if cur_output < min_output:
+                min_output = cur_output
+                min_w = cur_w
+            w= cur_w
+            iter +=1
+            self.callback_(GD=self,
+                           jacobian=f.compute_jacobian(X=X, y=y),
+                           t=t,
+                           eta=eta,
+                           norm=delta,
+                           weights=f.weights,
+                           val=f.compute_output(X=X, y=y))
+            if delta< self.tol_:
+                break
+        if self.out_type_ == "best":
+            return min_w
+        elif self.out_type_ == "last":
+            return w
+        return weights_sum / iter
